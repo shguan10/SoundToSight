@@ -1,0 +1,11 @@
+PYGAME
+from pygame import mixer
+mixer.init()
+mixer.music.load('overlay.mp3')
+mixer.music.play()
+mixer.music.stop()
+mixer.music.play()
+mixer.music.stop()
+mixer.music.resume()
+
+Thats for the player, which will call mixer.music.play() and then call the function that plays the animation.
