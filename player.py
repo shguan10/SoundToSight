@@ -40,8 +40,10 @@ class Player:
 
         self.period = period
         self.animgen = AnimGen(self.size, self.mfile, "data\\test",self.period)
+        self.animgen.gen_anim()
 
         self.reset()
+        self.oktoplay=True
 
     def showInfo(self):
         #TODO implement
@@ -49,28 +51,34 @@ class Player:
 
     def play(self):
         self.mixer.music.play()
-        while(self.animgen.has_next()):
+        while(self.animgen.has_next() and self.oktoplay):
+            print("here")
             self.display_next_screen()
             sleep(self.period)
 
     def reset(self):
         self.mixer.stop()
+        self.oktoplay=False
+
         self.canvas.delete(tk.ALL)
         self.animgen.reset()
         self.display_next_screen()
 
+        self.oktoplay=True
+
     def display_next_screen(self):
         screen = self.animgen.get_next() #list of rows, so y gets incremented first
         if(screen==None): raise IndexError
+        self.canvas.delete(tk.ALL)
         for x in xrange(len(screen)):
             for y in xrange(len(screen)):
-                psize= 1
+                psize= 20
                 self.canvas.create_rectangle(x-psize,y+psize,x+psize,y-psize,fill=screen[x][y])
 
 def main():
     root = tk.Tk()
-    musicfile = "data\\rhapsodyinblue.mp3"
-    app = Player(root,musicfile)
+    musicfile = "data\\Reflected.wav"
+    app = Player(root,musicfile,2)
     root.mainloop()
 
 if __name__=="__main__":
