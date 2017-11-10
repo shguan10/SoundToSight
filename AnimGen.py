@@ -10,7 +10,7 @@ def power2color(bucket_power,total_power):
     # convert to [0,256)
     if(bucket_power>total_power): raise ValueError
     val = int(bucket_power/float(total_power)*256) #TODO this always returns 0?
-    if(val>0 and val<200): val +=50
+    #if(val>0 and val<200): val +=50
     return int2color(255-val) #we want higher values to be darker
 
 def int2color(val):
@@ -73,68 +73,73 @@ class AnimGen:
         #http://samcarcagno.altervista.org/blog/basic-sound-processing-python/
 
     def gen_anim(self):
-        print("Generating Animation from audio file: "+self.mfile)
+        print("Generating Animation from audio file: "+str(self.mfile))
 
-        #much of the fft code was taken from http://samcarcagno.altervista.org/blog/basic-sound-processing-python/
-        sampFreq, snd = wavfile.read(self.mfile)
-        s1=snd[:,0] #we only use the right channel
-        if(snd.dtype=='int16'): s1=s1/(2.**15)
-        #how many samples per period?
-        num_samples_period = int(self.period * sampFreq)
+        if(self.mfile==None):
+            #TODO write code to debug the player
+            self.screens=[[[power2color(y+k,self.side_length+k) for y in xrange(self.side_length)] for x in xrange(self.side_length)]for k in xrange(100)]
+        else:
+            #much of the fft code was taken from http://samcarcagno.altervista.org/blog/basic-sound-processing-python/
+            sampFreq, snd = wavfile.read(self.mfile)
+            s1=snd[:,0] #we only use the right channel
+            if(snd.dtype=='int16'): s1=s1/(2.**15)
+            #how many samples per period?
+            num_samples_period = int(self.period * sampFreq)
 
-        num_periods = len(s1)/num_samples_period
+            num_periods = len(s1)/num_samples_period
 
-        """
-        #get total power
-        tp=sound2freqpower(s1)
-        if((tp<0).any()):
-            print("Something went wrong: some of the terms in tp are negative!")
-            raise ValueError
-        total_power = np.sqrt(np.sum(tp))
-        """
-        #for each period (screen)
-        period_idx = 0
-        while(period_idx<num_periods):
-            if(period_idx!=0 and period_idx%10==0): print(str(period_idx)+" out of "+str(num_periods)+ " complete")
-            #TODO this is slow because it makes a copy of the subarray
-            p = sound2freqpower(s1[period_idx*num_samples_period :
-                (period_idx+1)*num_samples_period])
-            #TODO apparently there might be frequencies that are present in a sub sample that are not present in the total sample?
             """
-            if(np.sqrt(np.sum(p))>total_power):
-                print("Something went wrong: the power of a sub sample is larger than the total power")
-                print("period index: "+str(period_idx))
-                print("num_samples_period: "+str(num_samples_period))
+            #get total power
+            tp=sound2freqpower(s1)
+            if((tp<0).any()):
+                print("Something went wrong: some of the terms in tp are negative!")
                 raise ValueError
+            total_power = np.sqrt(np.sum(tp))
             """
-            #put frequencies in buckets
-            num_freq_bucket = len(p)/self.num_buck
+            #for each period (screen)
+            period_idx = 0
+            while(period_idx<num_periods):
+                if(period_idx!=0 and period_idx%10==0): print(str(period_idx)+" out of "+str(num_periods)+ " complete")
+                #TODO this is slow because it makes a copy of the subarray
+                p = sound2freqpower(s1[period_idx*num_samples_period :
+                    (period_idx+1)*num_samples_period])
+                #TODO apparently there might be frequencies that are present in a sub sample that are not present in the total sample?
+                """
+                if(np.sqrt(np.sum(p))>total_power):
+                    print("Something went wrong: the power of a sub sample is larger than the total power")
+                    print("period index: "+str(period_idx))
+                    print("num_samples_period: "+str(num_samples_period))
+                    raise ValueError
+                """
+                #put frequencies in buckets
+                num_freq_bucket = len(p)/self.num_buck
 
-            buckets = [0 for x in xrange(self.num_buck)] #contains rms of frequencies in each buckets
-            numnonzero = 0
-            bucket_idx = 0
-            while(bucket_idx<self.num_buck):
-                #get rms of those frequencies
-                sum = 0
-                freq_idx = bucket_idx*num_freq_bucket
-                while(freq_idx<num_freq_bucket):
-                    sum+=p[freq_idx]
-                    freq_idx+=1
-                buckets[bucket_idx]=np.sqrt(sum)
-                if(buckets[bucket_idx]>0): numnonzero+=1
-                bucket_idx+=1
-            if((p>0).any()):
-                print(numnonzero>0)
+                buckets = [0 for x in xrange(self.num_buck)] #contains rms of frequencies in each buckets
+                numnonzero = 0
+                bucket_idx = 0
+                while(bucket_idx<self.num_buck):
+                    #get rms of those frequencies
+                    sum = 0
+                    freq_idx = bucket_idx*num_freq_bucket
+                    while(freq_idx<num_freq_bucket):
+                        sum+=p[freq_idx]
+                        freq_idx+=1
+                    if(sum>0):numnonzero+=1
+                    buckets[bucket_idx]=np.sqrt(sum)
+                    #if(buckets[bucket_idx]>0): numnonzero+=1
+                    bucket_idx+=1
+                if((p>0).any()):
+                    print(numnonzero>0)
 
-            #convert list of buckets into a screen, using the space-filling curve
-            screen = [[0 for y in xrange(self.side_length)] for x in xrange(self.side_length)]
-            for bidx in xrange(len(buckets)):
-                (x,y)=self.curve2plane(bidx)
-                #color= power2color(buckets[bidx],total_power) #convert rms into greyscale
-                color= power2color(buckets[bidx],.5) #convert rms into greyscale
-                screen[x][y]=color
-            period_idx+=1
-            self.screens.append(screen)
+                #convert list of buckets into a screen, using the space-filling curve
+                screen = [[0 for y in xrange(self.side_length)] for x in xrange(self.side_length)]
+                for bidx in xrange(len(buckets)):
+                    (x,y)=self.curve2plane(bidx)
+                    #color= power2color(buckets[bidx],total_power) #convert rms into greyscale
+                    color= power2color(buckets[bidx],.5) #convert rms into greyscale
+                    screen[x][y]=color
+                period_idx+=1
+                self.screens.append(screen)
         self.screen_index = 0
         print("Finished Animation with " + str(len(self.screens)) + " screens")
 

@@ -32,17 +32,20 @@ class Player:
 
         self.canvas = tk.Canvas(frame2, width=self.size, height=self.size)
         self.canvas.pack(anchor=tk.CENTER)
-
         self.mfile = musicfile
-        self.mixer = mixer
-        self.mixer.init()
-        self.mixer.music.load(self.mfile)
+
+        if(self.mfile!=None):
+            self.mixer = mixer
+            self.mixer.init()
+            self.mixer.music.load(self.mfile)
 
         self.period = period
         self.animgen = AnimGen(self.size, self.mfile, "data\\test",self.period)
         self.animgen.gen_anim()
 
+        print('before reset')
         self.reset()
+        print("after reset")
         self.oktoplay=True
 
     def showInfo(self):
@@ -50,19 +53,25 @@ class Player:
         pass
 
     def play(self):
-        self.mixer.music.play()
+        if(self.mfile!=None): self.mixer.music.play()
+        #self.display_next_screen()
+        """"""
         while(self.animgen.has_next() and self.oktoplay):
-            print("here")
+            #print("here")
+            #TODO This method to play the animation is too slow
             self.display_next_screen()
             sleep(self.period)
+        """"""
 
     def reset(self):
-        self.mixer.stop()
+        if(self.mfile!=None): self.mixer.stop()
         self.oktoplay=False
 
         self.canvas.delete(tk.ALL)
         self.animgen.reset()
+        print("before display")
         self.display_next_screen()
+        print('after display')
 
         self.oktoplay=True
 
@@ -72,13 +81,14 @@ class Player:
         self.canvas.delete(tk.ALL)
         for x in xrange(len(screen)):
             for y in xrange(len(screen)):
-                psize= 20
-                self.canvas.create_rectangle(x-psize,y+psize,x+psize,y-psize,fill=screen[x][y])
+                psize= 1
+                self.canvas.create_rectangle(x-psize,y+psize,x+psize,y-psize,fill=screen[x][y],width=0)
 
 def main():
     root = tk.Tk()
     musicfile = "data\\Reflected.wav"
-    app = Player(root,musicfile,2)
+    #app = Player(root,musicfile,3) #TODO tweak the wait period here
+    app = Player(root,None,.05) #TODO tweak the wait period here
     root.mainloop()
 
 if __name__=="__main__":
