@@ -1,3 +1,8 @@
+1. Create a GIF of the sound file
+2. Combine the GIF and the sound file to create an mp4 file.
+
+
+
 PYGAME
 from pygame import mixer
 mixer.init()

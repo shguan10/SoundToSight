@@ -93,64 +93,76 @@ class AnimGen:
 
     def gen_anim(self):
         print("Generating Animation from audio file: "+str(self.mfile))
+        assert self.mfile is not None
+        #much of the fft code was taken from http://samcarcagno.altervista.org/blog/basic-sound-processing-python/
+        sampFreq, snd = wavfile.read(self.mfile)
+        s1=snd[:,0] #we only use the right channel (not the left one)
+        if(snd.dtype=='int16'): s1=s1/(2.**15)
+        
+        # TODO first get the fft of the entire mfile (num_periods = 1)
+        numpoints = len(s1)
+        freqs2pow = sound2freqpower(s1)
 
-        if(self.mfile==None):
-            #TODO write code to debug the player
-            self.screens=[
-                [
-                    [power2color(y+k,self.side_length+k) 
-                        for y in range(self.side_length)] 
-                    for x in range(self.side_length)]
-                for k in range(100)]
-        else:
-            #much of the fft code was taken from http://samcarcagno.altervista.org/blog/basic-sound-processing-python/
-            sampFreq, snd = wavfile.read(self.mfile)
-            s1=snd[:,0] #we only use the right channel (not the left one)
-            if(snd.dtype=='int16'): s1=s1/(2.**15)
+
+        nUniquePts = int(np.ceil(numpoints + 1) / 2)
+        freqlabels = np.arange(0,nUniquePts,1) * (sampFreq/numpoints)
+        num_freq_per_buck = int(len(freqs2pow) / self.num_buck)
+
+        def freq2buckind(freq):
+            for ind,label in enumerate(freqlabels):
+                if label<= freq: return ind/num_freq_per_buck
+
+        buckets = [sum(freqs2pow[
+                        buck*num_freq_per_buck:
+                        (buck+1)*num_freq_per_buck]) 
+                    for buck in self.num_buck]
+
+        logbuckets = np.log(np.array(buckets))
+        maxdb = logbuckets.max()
+
+        # Now do fft for each screen
+        num_samples_period = int(self.period * sampFreq)
+        num_periods = len(s1)/num_samples_period
+
+        for period_idx in range(num_periods):
+            if(period_idx%10==0): print(str(period_idx)+" out of "+str(num_periods)+ " complete")
+            sp = s1[period_idx*num_samples_period :
+                    (period_idx+1)*num_samples_period]
+
+            np = len(sp)
+            nUniquePts_p = int(np.ceil(np + 1) / 2)
+
+            freqs2pow_p = sound2freqpower(sp)
             
-            # TODO first get the fft of the entire mfile (num_periods = 1)
-            numpoints = len(s1)
-            self.period = numpoints / sampFreq
+            freqlabels_p = np.arange(0,nUniquePts_p,1) * (sampFreq/np)
 
-            #how many samples per period?
-            num_samples_period = int(self.period * sampFreq)
+            #put frequencies in buckets
+            freq2buckind_p = [freq2buckind(freq) for freq in freqlabels_p]
 
-            num_periods = len(s1)/num_samples_period
+            changes = [ind for ind,buckind in enumerate(freq2buckind_p) 
+                        if ind>0 and freq2buckind_p[ind]!=freq2buckind_p[ind-1]]
+            changes.append(len(freq2buckind_p))
 
+            buckets_p = [0 for buck in range(self.num_buck)]
 
-            #for each period (screen)
-            period_idx = 0
-            while(period_idx<num_periods):
-                if(period_idx!=0 and period_idx%10==0): print(str(period_idx)+" out of "+str(num_periods)+ " complete")
-                #TODO this is slow because it makes a copy of the subarray
-                freqs2pow = sound2freqpower(s1[period_idx*num_samples_period :
-                    (period_idx+1)*num_samples_period])
-                
-                #put frequencies in buckets
-                # TODO the frequency buckets should not change from screen to screen
-                
-                num_freq_per_buck = int(len(freqs2pow) / self.num_buck)
-                # pdb.set_trace()
-                buckets = [
-                    sum(freqs2pow[buck*num_freq_per_buck:(buck+1)*num_freq_per_buck]) 
-                    for buck in range(self.num_buck)]
+            for ind,ch in enumerate(changes):
+                if ind==0: continue
+                buckets_p[freq2buckind_p[ch-1]] = sum(freqs2pow_p[changes[ind-1]:ch])
 
-                #convert list of buckets into a screen, using the space-filling curve
-                screen = np.zeros((self.side_length,self.side_length))
-                for bidx in range(len(buckets)):
-                    # color= power2color(buckets[bidx],screen_power) #convert rms into greyscale
-                    screen[self.curve2plane(bidx)]=buckets[bidx]
+            #convert list of buckets into a screen, using the space-filling curve
+            screen = np.zeros((self.side_length,self.side_length))
+            for bidx,bp in enumerate(buckets_p):
+                screen[self.curve2plane(bidx)]=bp
 
-                period_idx+=1
-                # TODO display the screen
-                # pdb.set_trace()
-                screen /= screen.max()
-                screen *= 255
-                screen = np.uint8(screen)
-                img = Image.fromarray(screen,'L')
-                # img.show()
+            # TODO display the screen
+            # pdb.set_trace()
+            screen = np.log(screen) / maxdb
+            screen *= 255
+            screen = np.uint8(screen)
+            img = Image.fromarray(screen,'L')
+            # img.show()
 
-                self.screens.append(screen)
+            self.screens.append(screen)
         self.screen_index = 0
         print("Finished Animation with " + str(len(self.screens)) + " screens")
 
