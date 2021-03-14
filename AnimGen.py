@@ -2,6 +2,12 @@ import numpy as np
 from scipy.io import wavfile
 from pylab import fft
 
+from PIL import Image
+import pdb
+
+import matplotlib.pyplot as plt
+
+import imageio
 
 def power2color(bucket_power,total_power):
     """
@@ -32,18 +38,28 @@ def int2color(val):
     return res
 
 def sound2freqpower(samps):
-    nUniquePts = int(np.ceil((len(samps) + 1) / 2.0))
-    p = abs(fft(samps)[0:nUniquePts])
-    p = p / float(len(samps))  # scale by the number of points so that
-    # the magnitude does not depend on the length
-    # of the signal or on its sampling frequency
-    p = p ** 2  # square it to get the power
+    n = len(samps)
+    p = fft(samps)
+
+    nUniquePts = int(np.ceil(n + 1) / 2)
+    
+    p = p[:nUniquePts]
+    p = abs(p)
+
+    # now we normalize so that the magnitude is invariant on the number of points
+    p = p / n
+
+    # square it to get the power
+    p = p ** 2  
+
     # multiply by two (see technical document for details)
     # odd nfft excludes Nyquist point
-    if len(samps) % 2 > 0:  # we've got odd number of points fft
+    if n % 2:  
+        # we've got odd number of points fft
         p[1:len(p)] = p[1:len(p)] * 2
     else:
-        p[1:len(p) - 1] = p[1:len(p) - 1] * 2  # we've got even number of points fft
+        p[1:len(p) - 1] = p[1:len(p) - 1] * 2
+
     return p
 
 class AnimGen:
@@ -57,11 +73,14 @@ class AnimGen:
         :param destfile: the destination of the output video
         """
         self.side_length=size
-        self.num_buck = self.side_length ** 2 #number of buckets of rms power, to be converted into greyscale intensity
+        
+        #number of frequency buckets
+        # TODO if the number of buckets is greater than the number of frequencies then undesirable things happen
+        self.num_buck = self.side_length * self.side_length 
         self.mfile=musicfile
         self.dfile = destfile
 
-        self.period= period #period between screen updates
+        self.period= period #period between screen updates, in seconds
         self.screens=[] #list of screens to display as animation,
                         #each screen is a 2d array of size^2
                             #and is a list of rows. so y is incremented fastest
@@ -77,71 +96,67 @@ class AnimGen:
 
         if(self.mfile==None):
             #TODO write code to debug the player
-            self.screens=[[[power2color(y+k,self.side_length+k) for y in xrange(self.side_length)] for x in xrange(self.side_length)]for k in xrange(100)]
+            self.screens=[
+                [
+                    [power2color(y+k,self.side_length+k) 
+                        for y in range(self.side_length)] 
+                    for x in range(self.side_length)]
+                for k in range(100)]
         else:
             #much of the fft code was taken from http://samcarcagno.altervista.org/blog/basic-sound-processing-python/
             sampFreq, snd = wavfile.read(self.mfile)
-            s1=snd[:,0] #we only use the right channel
+            s1=snd[:,0] #we only use the right channel (not the left one)
             if(snd.dtype=='int16'): s1=s1/(2.**15)
+            
+            # TODO first get the fft of the entire mfile (num_periods = 1)
+            numpoints = len(s1)
+            self.period = numpoints / sampFreq
+
             #how many samples per period?
             num_samples_period = int(self.period * sampFreq)
 
             num_periods = len(s1)/num_samples_period
 
-            """
-            #get total power
-            tp=sound2freqpower(s1)
-            if((tp<0).any()):
-                print("Something went wrong: some of the terms in tp are negative!")
-                raise ValueError
-            total_power = np.sqrt(np.sum(tp))
-            """
+
             #for each period (screen)
             period_idx = 0
             while(period_idx<num_periods):
                 if(period_idx!=0 and period_idx%10==0): print(str(period_idx)+" out of "+str(num_periods)+ " complete")
                 #TODO this is slow because it makes a copy of the subarray
-                p = sound2freqpower(s1[period_idx*num_samples_period :
+                freqs2pow = sound2freqpower(s1[period_idx*num_samples_period :
                     (period_idx+1)*num_samples_period])
-                #TODO apparently there might be frequencies that are present in a sub sample that are not present in the total sample?
-                """
-                if(np.sqrt(np.sum(p))>total_power):
-                    print("Something went wrong: the power of a sub sample is larger than the total power")
-                    print("period index: "+str(period_idx))
-                    print("num_samples_period: "+str(num_samples_period))
-                    raise ValueError
-                """
+                
                 #put frequencies in buckets
-                num_freq_bucket = len(p)/self.num_buck
-
-                buckets = [0 for x in xrange(self.num_buck)] #contains rms of frequencies in each buckets
-                numnonzero = 0
-                bucket_idx = 0
-                while(bucket_idx<self.num_buck):
-                    #get rms of those frequencies
-                    sum = 0
-                    freq_idx = bucket_idx*num_freq_bucket
-                    while(freq_idx<num_freq_bucket):
-                        sum+=p[freq_idx]
-                        freq_idx+=1
-                    if(sum>0):numnonzero+=1
-                    buckets[bucket_idx]=np.sqrt(sum)
-                    #if(buckets[bucket_idx]>0): numnonzero+=1
-                    bucket_idx+=1
-                if((p>0).any()):
-                    print(numnonzero>0)
+                # TODO the frequency buckets should not change from screen to screen
+                
+                num_freq_per_buck = int(len(freqs2pow) / self.num_buck)
+                # pdb.set_trace()
+                buckets = [
+                    sum(freqs2pow[buck*num_freq_per_buck:(buck+1)*num_freq_per_buck]) 
+                    for buck in range(self.num_buck)]
 
                 #convert list of buckets into a screen, using the space-filling curve
-                screen = [[0 for y in xrange(self.side_length)] for x in xrange(self.side_length)]
-                for bidx in xrange(len(buckets)):
-                    (x,y)=self.curve2plane(bidx)
-                    #color= power2color(buckets[bidx],total_power) #convert rms into greyscale
-                    color= power2color(buckets[bidx],.5) #convert rms into greyscale
-                    screen[x][y]=color
+                screen = np.zeros((self.side_length,self.side_length))
+                for bidx in range(len(buckets)):
+                    # color= power2color(buckets[bidx],screen_power) #convert rms into greyscale
+                    screen[self.curve2plane(bidx)]=buckets[bidx]
+
                 period_idx+=1
+                # TODO display the screen
+                # pdb.set_trace()
+                screen /= screen.max()
+                screen *= 255
+                screen = np.uint8(screen)
+                img = Image.fromarray(screen,'L')
+                # img.show()
+
                 self.screens.append(screen)
         self.screen_index = 0
         print("Finished Animation with " + str(len(self.screens)) + " screens")
+
+        imageio.mimwrite(self.dfile,self.screens,duration=self.period)
+
+
 
     def reset(self):
         self.screen_index = 0
@@ -166,7 +181,7 @@ class AnimGen:
         """
         #TODO try Hilbert Curve
         #iterates stuff in each row first. so y gets incremented fastest
-        return (index / self.side_length, index % self.side_length)
+        return (index // self.side_length, index % self.side_length)
 
     def plane2curve(self,coord):
         """
@@ -176,3 +191,8 @@ class AnimGen:
         """
         #TODO use Hilbert Curve
         return coord[0]*self.side_length + coord[1]
+
+
+if __name__ == '__main__':
+    ag = AnimGen(30,"data/Reflected.wav","test.gif",None)
+    ag.gen_anim()
