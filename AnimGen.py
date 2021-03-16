@@ -68,7 +68,7 @@ class AnimGen:
     """
     AnimGen creates an animation to be played alongside the music
     """
-    def __init__(self,size,musicfile,destfile,period):
+    def __init__(self,size,musicfile,destfile,period,magnify_factor=10):
         """
         :param size: side length of the square plane. Integer
         :param musicfile: the musicfile to be converted
@@ -89,6 +89,8 @@ class AnimGen:
                         #each pixel in a screen is a color (str)
         self.screen_index = -1 #index of curr screen
 
+
+        self.magfact = magnify_factor
         #TODO generate screens based on frequency input
         #so we need to use fft
         #http://samcarcagno.altervista.org/blog/basic-sound-processing-python/
@@ -163,8 +165,10 @@ class AnimGen:
             screen = np.log(screen) / maxdb
             screen *= 255
             screen = np.uint8(screen)
-            img = Image.fromarray(screen,'L')
+            # img = Image.fromarray(screen,'L')
             # img.show()
+
+            screen = AnimGen.magnify_screen(screen,self.magfact)
 
             self.screens.append(screen)
         self.screen_index = 0
@@ -173,6 +177,12 @@ class AnimGen:
         imageio.mimwrite(self.dfile,self.screens,duration=self.period)
 
 
+    @staticmethod
+    def magnify_screen(screen,factor):
+        # magnifies the screen by factor
+        screen = np.repeat(screen,factor,axis=1)
+        screen = np.repeat(screen,factor,axis=0)
+        return screen
 
     def reset(self):
         self.screen_index = 0
@@ -210,5 +220,5 @@ class AnimGen:
 
 
 if __name__ == '__main__':
-    ag = AnimGen(30,"data/Reflected.wav","test.gif",0.1)
+    ag = AnimGen(30,"data/Reflected.wav","test.gif",3)
     ag.gen_anim()
