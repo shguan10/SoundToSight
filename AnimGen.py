@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 
 import imageio
 
+import hilbert_curve
+
 EPSILON=1e-20
 
 def power2color(bucket_power,total_power):
@@ -124,7 +126,7 @@ class AnimGen:
                     for buck in range(self.num_buck)]
 
         logbuckets = np.log(np.array(buckets))
-        maxdb = logbuckets.max()
+        maxdb = np.abs(logbuckets).max()
 
         # Now do fft for each screen
         num_samples_period = int(self.period * sampFreq)
@@ -154,15 +156,20 @@ class AnimGen:
 
             for ind,ch in enumerate(changes):
                 if ind==0: continue
-                buckets_p[freq2buckind_p[ch-1]] = sum(freqs2pow_p[changes[ind-1]:ch])
+                buckets_p[freq2buckind_p[ch-1]] = sum(freqs2pow_p[changes[ind-1]:ch])+EPSILON
 
             #convert list of buckets into a screen, using the space-filling curve
-            screen = np.zeros((self.side_length,self.side_length))
+            screen = np.ones((self.side_length,self.side_length))*EPSILON
             for bidx,bp in enumerate(buckets_p):
                 screen[self.curve2plane(bidx)]=bp
 
             # TODO display the screen
-            screen = np.log(screen) / maxdb
+            # pdb.set_trace()
+            # screen = np.log(screen)
+            maxscreen = screen.max()
+            minscreen = screen.min()
+            screen -= minscreen
+            if maxscreen>minscreen: screen /= (maxscreen - minscreen)
             screen *= 255
             screen = np.uint8(screen)
             # img = Image.fromarray(screen,'L')
@@ -207,7 +214,17 @@ class AnimGen:
         """
         #TODO try Hilbert Curve
         #iterates stuff in each row first. so y gets incremented fastest
-        return (index // self.side_length, index % self.side_length)
+        # 2^M = self.size**2
+        # 2^(M/2) = self.size
+        # log_2(self.size) = M/2
+
+        M = 2*np.ceil(np.log(self.side_length)/np.log(2))
+
+        hx,hy = hilbert_curve.d2xy(M,index)
+
+        return min(hx,self.side_length-1),min(hy,self.side_length-1)
+
+        # return (index // self.side_length, index % self.side_length)
 
     def plane2curve(self,coord):
         """
@@ -220,5 +237,6 @@ class AnimGen:
 
 
 if __name__ == '__main__':
-    ag = AnimGen(30,"data/Reflected.wav","test.gif",3)
+    ag = AnimGen(30,"data/Reflected.wav","test.gif",0.3)
+    # ag = AnimGen(30,"data/440_sine.wav","test.gif",0.1)
     ag.gen_anim()
