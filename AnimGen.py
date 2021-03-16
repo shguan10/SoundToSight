@@ -8,6 +8,8 @@ import pdb
 import matplotlib.pyplot as plt
 
 import imageio
+from moviepy.editor import VideoClip, AudioFileClip
+
 
 import hilbert_curve
 
@@ -235,8 +237,24 @@ class AnimGen:
         #TODO use Hilbert Curve
         return coord[0]*self.side_length + coord[1]
 
+    def gen_mv(self):
+        # generates the music video combining gif and audio
+        def make_frame(t):
+            ind = int(t//self.period)
+            frame = self.screens[ind]
+            return frame[:,:,None] * np.ones((1,1,3),np.uint8)
+
+        total_duration = len(self.screens)*self.period # in seconds
+        animation = VideoClip(make_frame, duration=total_duration)
+
+        # pdb.set_trace()
+        audio = AudioFileClip(self.mfile)
+
+        animation.set_audio(audio).write_videofile("test.mp4",fps=20)
 
 if __name__ == '__main__':
-    ag = AnimGen(30,"data/Reflected.wav","test.gif",0.3)
+    # ag = AnimGen(30,"data/Reflected.wav","test.gif",0.1)
+    ag = AnimGen(30,"data/Sneaky Snitch.wav","test.gif",0.1)
     # ag = AnimGen(30,"data/440_sine.wav","test.gif",0.1)
     ag.gen_anim()
+    ag.gen_mv()
