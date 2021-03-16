@@ -1,6 +1,6 @@
 1. Create a GIF of the sound file
 2. Combine the GIF and the sound file to create an mp4 file.
-
+3. make sure the buckets are the right size
 
 
 PYGAME

@@ -104,7 +104,9 @@ class AnimGen:
         assert self.mfile is not None
         #much of the fft code was taken from http://samcarcagno.altervista.org/blog/basic-sound-processing-python/
         sampFreq, snd = wavfile.read(self.mfile)
-        s1=snd[:,0] #we only use the right channel (not the left one)
+        if len(snd)==2: s1=snd[:,0] #we only use the right channel (not the left one)
+        else: s1 = snd
+        
         if(snd.dtype=='int16'): s1=s1/(2.**15)
         
         # TODO first get the fft of the entire mfile (num_periods = 1)
@@ -147,6 +149,7 @@ class AnimGen:
             freqlabels_p = np.arange(0,nUniquePts_p,1) * (sampFreq/n_p)
 
             #put frequencies in buckets
+            # TODO the buckets get exponentially larger
             freq2buckind_p = [freq2buckind(freq) for freq in freqlabels_p]
             # pdb.set_trace()
 
@@ -254,7 +257,8 @@ class AnimGen:
 
 if __name__ == '__main__':
     # ag = AnimGen(30,"data/Reflected.wav","test.gif",0.1)
-    ag = AnimGen(30,"data/Sneaky Snitch.wav","test.gif",0.1)
+    # ag = AnimGen(30,"data/Sneaky Snitch.wav","test.gif",0.1)
+    ag = AnimGen(30,"data/rhapsodyinblue.wav","test.gif",0.1)
     # ag = AnimGen(30,"data/440_sine.wav","test.gif",0.1)
     ag.gen_anim()
     ag.gen_mv()
