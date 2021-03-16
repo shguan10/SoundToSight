@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 
 import imageio
 
+EPSILON=1e-20
+
 def power2color(bucket_power,total_power):
     """
     :return: the string representation of the intensity
@@ -109,41 +111,44 @@ class AnimGen:
         num_freq_per_buck = int(len(freqs2pow) / self.num_buck)
 
         def freq2buckind(freq):
-            for ind,label in enumerate(freqlabels):
-                if label<= freq: return ind/num_freq_per_buck
+            num = int(np.searchsorted(freqlabels,freq) // num_freq_per_buck)
+            # just put all the remaining frequencies in the last bucket
+            if num>=self.num_buck: return self.num_buck-1
+            else: return num
 
         buckets = [sum(freqs2pow[
                         buck*num_freq_per_buck:
                         (buck+1)*num_freq_per_buck]) 
-                    for buck in self.num_buck]
+                    for buck in range(self.num_buck)]
 
         logbuckets = np.log(np.array(buckets))
         maxdb = logbuckets.max()
 
         # Now do fft for each screen
         num_samples_period = int(self.period * sampFreq)
-        num_periods = len(s1)/num_samples_period
+        num_periods = len(s1)//num_samples_period
 
         for period_idx in range(num_periods):
             if(period_idx%10==0): print(str(period_idx)+" out of "+str(num_periods)+ " complete")
             sp = s1[period_idx*num_samples_period :
                     (period_idx+1)*num_samples_period]
 
-            np = len(sp)
-            nUniquePts_p = int(np.ceil(np + 1) / 2)
+            n_p = len(sp)
+            nUniquePts_p = int(np.ceil(n_p + 1) / 2)
 
             freqs2pow_p = sound2freqpower(sp)
             
-            freqlabels_p = np.arange(0,nUniquePts_p,1) * (sampFreq/np)
+            freqlabels_p = np.arange(0,nUniquePts_p,1) * (sampFreq/n_p)
 
             #put frequencies in buckets
             freq2buckind_p = [freq2buckind(freq) for freq in freqlabels_p]
+            # pdb.set_trace()
 
             changes = [ind for ind,buckind in enumerate(freq2buckind_p) 
                         if ind>0 and freq2buckind_p[ind]!=freq2buckind_p[ind-1]]
             changes.append(len(freq2buckind_p))
 
-            buckets_p = [0 for buck in range(self.num_buck)]
+            buckets_p = [EPSILON for buck in range(self.num_buck)]
 
             for ind,ch in enumerate(changes):
                 if ind==0: continue
@@ -155,7 +160,6 @@ class AnimGen:
                 screen[self.curve2plane(bidx)]=bp
 
             # TODO display the screen
-            # pdb.set_trace()
             screen = np.log(screen) / maxdb
             screen *= 255
             screen = np.uint8(screen)
@@ -206,5 +210,5 @@ class AnimGen:
 
 
 if __name__ == '__main__':
-    ag = AnimGen(30,"data/Reflected.wav","test.gif",None)
+    ag = AnimGen(30,"data/Reflected.wav","test.gif",0.1)
     ag.gen_anim()
