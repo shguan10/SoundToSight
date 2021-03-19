@@ -104,33 +104,50 @@ class AnimGen:
         assert self.mfile is not None
         #much of the fft code was taken from http://samcarcagno.altervista.org/blog/basic-sound-processing-python/
         sampFreq, snd = wavfile.read(self.mfile)
-        if len(snd)==2: s1=snd[:,0] #we only use the right channel (not the left one)
+        if len(snd.shape)>1: s1=snd[:,0] #we only use the right channel (not the left one)
         else: s1 = snd
-        
+
         if(snd.dtype=='int16'): s1=s1/(2.**15)
         
         # TODO first get the fft of the entire mfile (num_periods = 1)
         numpoints = len(s1)
-        freqs2pow = sound2freqpower(s1)
-
-
         nUniquePts = int(np.ceil(numpoints + 1) / 2)
-        freqlabels = np.arange(0,nUniquePts,1) * (sampFreq/numpoints)
-        num_freq_per_buck = int(len(freqs2pow) / self.num_buck)
+
+
+        # freqs2pow = sound2freqpower(s1)
+
+        minfreq = 55
+        minlogfreq = np.log(minfreq)
+
+        maxfreq = 32 * 440
+        maxlogfreq = np.log(maxfreq)
+
+        # freqlabels = np.arange(0,nUniquePts,1) * (sampFreq/numpoints)
+        # num_freq_per_buck = int(len(freqs2pow) / self.num_buck)
+        # buckets = [sum(freqs2pow[
+        #                 buck*num_freq_per_buck:
+        #                 (buck+1)*num_freq_per_buck]) 
+        #             for buck in range(self.num_buck)]
+
+        # logbuckets = np.log(np.array(buckets))
+        # maxdb = np.abs(logbuckets).max()
 
         def freq2buckind(freq):
-            num = int(np.searchsorted(freqlabels,freq) // num_freq_per_buck)
+            # take the log of the frequency and assign buckets
+            logfreq = np.log(freq)
+
+            if logfreq<= minlogfreq: return 0
+            if logfreq>=maxlogfreq: return self.num_buck - 1
+
+            num = (logfreq - minlogfreq) / (maxlogfreq - minlogfreq) * self.num_buck
+            num = int(num)
+
+            return num
+
+            # num = int(np.searchsorted(freqlabels,freq) // num_freq_per_buck)
             # just put all the remaining frequencies in the last bucket
-            if num>=self.num_buck: return self.num_buck-1
-            else: return num
-
-        buckets = [sum(freqs2pow[
-                        buck*num_freq_per_buck:
-                        (buck+1)*num_freq_per_buck]) 
-                    for buck in range(self.num_buck)]
-
-        logbuckets = np.log(np.array(buckets))
-        maxdb = np.abs(logbuckets).max()
+            # if num>=self.num_buck: return self.num_buck-1
+            # else: return num
 
         # Now do fft for each screen
         num_samples_period = int(self.period * sampFreq)
@@ -256,9 +273,10 @@ class AnimGen:
         animation.set_audio(audio).write_videofile("test.mp4",fps=20)
 
 if __name__ == '__main__':
-    # ag = AnimGen(30,"data/Reflected.wav","test.gif",0.1)
+    ag = AnimGen(30,"data/Reflected.wav","test.gif",0.1)
     # ag = AnimGen(30,"data/Sneaky Snitch.wav","test.gif",0.1)
-    ag = AnimGen(30,"data/rhapsodyinblue.wav","test.gif",0.1)
+    # ag = AnimGen(30,"data/rhapsodyinblue.wav","test.gif",0.1)
+    # ag = AnimGen(30,"data/overlay.wav","test.gif",0.1)
     # ag = AnimGen(30,"data/440_sine.wav","test.gif",0.1)
     ag.gen_anim()
     ag.gen_mv()
